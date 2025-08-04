@@ -1,0 +1,17 @@
+[package]
+name = "aurionrs"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+[build-dependencies]
+anyhow = "1.0"
+fs_extra = "1.2"
+glob = "0.3"
+[dependencies]
+glam = { version = "0.27", features = ["serde"] }
+sdl2 = {version = "0.38.0"}
+gl = "0.14"
+image = "0.25" # For loading textures
+gltf = "0.16.0"
+flecs_ecs = "0.1.3"
+
