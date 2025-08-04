@@ -1,10 +1,15 @@
+use std::ffi::CString;
+use std::ptr;
 use super::components::*;
 use flecs_ecs::prelude::*;
+use flecs_ecs::prelude::system::System;
+use gl::types::GLsizei;
 use glam::{Mat4, Quat, Vec3};
-use crate::graphics::Shader;
+use crate::graphics;
+use crate::graphics::{Graphics, Shader};
 
 pub struct Ecs {
-    pub world: World,
+    pub world:World,
 }
 
 
@@ -13,8 +18,12 @@ impl Ecs {
     pub fn new() -> Self {
 
        let world = World::new();
-        world
-            .system_named::<(&(Transform,Local), Option<&(Transform,Global)>, &mut (Transform, Global),)>("Move").term_at(1).parent().cascade()
+        Self {world: world}
+    }
+    pub fn create_system(&mut self) -> (System, System)
+    {
+        let usys=   self.world
+            .system_named::<(&(Transform,Local), Option<&(Transform,Global)>, &mut (Transform, Global),)>("Update System").term_at(1).parent().cascade()
             .each(|(local,parent_world, world)| {
                 world.0 = local.0;
                 if let Some(parent_world) = parent_world {
@@ -24,19 +33,40 @@ impl Ecs {
 
             });
 
-        world
-            .system_named::<(&(Transform,Global), &Mesh, Option<&Texture>, &mut PBRShader, &mut Camera)>("Shader").term_at(3).singleton().term_at(4).singleton()
-            .each(|(world, mesh,texture,pbr, ActiveCameraData)| {
+        let rsys= self.world
+            .system_named::<(&(Transform,Global), &Mesh, Option<&Texture>, &mut PBRShader, &mut ActiveCameraData)>("Render System").term_at(4).singleton()
+            .each(|(world, mesh,texture,pbr, camera)| {
 
+                pbr.0.use_program();
+                pbr.0.set_uniform_mat4("view",&camera.view);
+                pbr.0.set_uniform_mat4("projection",&camera.projection);
+                pbr.0.set_uniform_mat4("model",&world.0);
+
+                pbr.0.set_uniform_vec3("lightPos", &Vec3::ONE);
+                pbr.0.set_uniform_vec3("lightColor", &Vec3::ONE);
+                pbr.0.set_uniform_vec3("viewPos", &camera.pos);
+                unsafe {
+                    let c_name_has_tex = CString::new("has_texture").unwrap();
+                    let loc_has_tex = gl::GetUniformLocation(pbr.0.id, c_name_has_tex.as_ptr());
+                    if let Some(texture) = texture
+                    {
+                        gl::Uniform1i(loc_has_tex, 1); // 0 for false
+                    }
+                    else
+                    {
+                        gl::Uniform1i(loc_has_tex, 0);
+                        let c_name_def_col = CString::new("default_color").unwrap();
+                        let loc_def_col = gl::GetUniformLocation(pbr.0.id, c_name_def_col.as_ptr());
+                        gl::Uniform3f(loc_def_col, 0.8, 0.5, 0.2); // An orange col// 0 for false
+                    }
+
+                    //
+                    gl::BindVertexArray(mesh.vao);
+                    gl::DrawElements(gl::TRIANGLES, mesh.indices.len() as GLsizei, gl::UNSIGNED_INT, ptr::null());
+                    gl::BindVertexArray(0);
+                }
             });
-
-        Self { world }
-    }
-
-    pub fn run_systems(&mut self) {
-
-
-        self.world.progress();
+        (usys,rsys)
     }
 
     pub fn create_entity(&mut self, name: &str, pos: Vec3, scale: Vec3, rot_euler_deg: Vec3, parent: Option<Entity>) -> Entity {
@@ -57,13 +87,18 @@ impl Ecs {
         }
         entity.id()
     }
-    pub fn add_mesh(&mut self, e: &mut Entity, mesh: Mesh, texture: Option<Texture>) {
-
+    pub fn add_mesh(&mut self, e: Entity, mesh: Mesh, texture: Option<Texture>) {
 
         e.entity_view(&self.world).set(mesh);
         if let Some(texture) = texture {
             e.entity_view(&self.world).set(texture);
         }
+    }
+    pub fn add_pbr_shader(&mut self, e: Entity, shader: Shader) {
+        e.entity_view(&self.world).set(PBRShader(shader));
+    }
+    pub fn set_camera(&mut self, camera: ActiveCameraData) {
+        self.world.set(camera);
     }
 
 }
