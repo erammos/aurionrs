@@ -24,7 +24,7 @@ impl Ecs {
         });
         Self {world: world}
     }
-    pub fn create_system(&mut self) -> (System, System, System)
+    pub fn create_system(&self) -> (System, System, System)
     {
         let csys=   self.world
             .system_named::<(&(Transform,Global),&Camera, &mut ActiveCameraData)>("Camera System").term_at(2).singleton()
@@ -80,7 +80,7 @@ impl Ecs {
                     gl::BindVertexArray(0);
                 }
             });
-        (usys,rsys, csys)
+        (usys.clone(),rsys.clone(), csys.clone())
     }
 
     pub fn create_entity(&mut self, name: &str, pos: Vec3, scale: Vec3, rot_euler_deg: Vec3, parent: Option<Entity>) -> Entity {
@@ -115,5 +115,4 @@ impl Ecs {
     pub fn add_camera(&mut self, e: Entity, camera: Camera) {
        e.entity_view(&self.world).set(camera);
     }
-
 }

@@ -241,7 +241,7 @@ impl Graphics {
         }
     }
 
-    pub fn load_texture(&self, path: &str) -> Result<Texture, String> {
+    pub fn load_texture(path: &str) -> Result<Texture, String> {
         let img = image::open(path).map_err(|e| e.to_string())?.into_rgb8();
         let (width, height) = img.dimensions();
         let data = img.into_raw();
