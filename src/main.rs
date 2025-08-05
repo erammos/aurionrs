@@ -2,7 +2,7 @@ use std::ffi::CString;
 use glam::{Mat4, Vec2, Vec3};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use crate::components::{ActiveCameraData, Vertex};
+use crate::components::{ActiveCameraData, Camera, Vertex};
 use crate::ecs::Ecs;
 use crate::graphics::{load_shader, Graphics};
 
@@ -56,7 +56,7 @@ fn main() -> Result<(), String> {
     let graphics = Graphics::new("Rust Engine", 1280, 720)?;
     let mut event_pump = graphics.sdl_context.event_pump()?;
     let shader = load_shader("assets/light.vert", "assets/light.frag")?;
-    let cube_mesh = graphics.create_mesh(CUBE_VERTICES.to_vec(), CUBE_INDICES.to_vec());
+    let cube_mesh = Graphics::create_mesh(CUBE_VERTICES.to_vec(), CUBE_INDICES.to_vec());
     //let (width, height) = window.size();
     let projection = Mat4::perspective_rh_gl(45.0f32.to_radians(), 1280 as f32 / 720 as f32, 0.1, 100.0);
     let view = Mat4::look_at_rh(
@@ -70,14 +70,25 @@ fn main() -> Result<(), String> {
 
    let mut world =  Ecs::new();
    let cube =  world.create_entity("cube",Vec3::ZERO,Vec3::ONE,Vec3::ZERO,None);
+    let camera =  world.create_entity("camera",Vec3 {
+        x: -1.0,
+        y: 0.0,
+        z: 2.0,
+    },Vec3::ONE,Vec3::ZERO,None);
+
+    let terrain =  world.create_entity("terrain",Vec3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    },Vec3::ONE,Vec3::ZERO,None);
+
+    world.add_camera(camera,Camera {
+        projection: projection,
+    });
     world.add_pbr_shader(cube,shader);
     world.add_mesh(cube,cube_mesh, None);
-    world.set_camera(ActiveCameraData {
-        pos: camera_pos,
-        view,
-        projection
-    });
-    let (update_system, render_system) =  world.create_system();
+
+    let (update_system, render_system,camera_system) =  world.create_system();
 
 
     'running: loop {
@@ -93,22 +104,9 @@ fn main() -> Result<(), String> {
 
         // --- Logic Update ---
         update_system.run();
-        // --- Rendering ---
+        camera_system.run();
         graphics.begin_frame();
-
         render_system.run();
-        unsafe {
-
-            // // Tell the shader to use the default color since we have no texture
-            // let c_name_has_tex = CString::new("has_texture").unwrap();
-            // let loc_has_tex = gl::GetUniformLocation(shader.id, c_name_has_tex.as_ptr());
-            // gl::Uniform1i(loc_has_tex, 0); // 0 for false
-            //
-            // let c_name_def_col = CString::new("default_color").unwrap();
-            // let loc_def_col = gl::GetUniformLocation(shader.id, c_name_def_col.as_ptr());
-            // gl::Uniform3f(loc_def_col, 0.8, 0.5, 0.2); // An orange color
-        }
-
 
         graphics.end_frame();
     }

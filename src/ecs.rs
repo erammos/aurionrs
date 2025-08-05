@@ -4,7 +4,7 @@ use super::components::*;
 use flecs_ecs::prelude::*;
 use flecs_ecs::prelude::system::System;
 use gl::types::GLsizei;
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
 use crate::graphics;
 use crate::graphics::{Graphics, Shader};
 
@@ -12,19 +12,33 @@ pub struct Ecs {
     pub world:World,
 }
 
-
 impl Ecs {
 
     pub fn new() -> Self {
 
        let world = World::new();
+        world.set(ActiveCameraData {
+            pos: Default::default(),
+            view: Default::default(),
+            projection: Default::default(),
+        });
         Self {world: world}
     }
-    pub fn create_system(&mut self) -> (System, System)
+    pub fn create_system(&mut self) -> (System, System, System)
     {
+        let csys=   self.world
+            .system_named::<(&(Transform,Global),&Camera, &mut ActiveCameraData)>("Camera System").term_at(2).singleton()
+            .each(|(world, camera, active_camera)| {
+
+                active_camera.projection = camera.projection;
+                active_camera.view =  world.0.inverse();
+                active_camera.pos =  (world.0 * Vec4{x:0.0,y:0.0,z:0.0,w:1.0}).xyz();
+
+            });
+
         let usys=   self.world
-            .system_named::<(&(Transform,Local), Option<&(Transform,Global)>, &mut (Transform, Global),)>("Update System").term_at(1).parent().cascade()
-            .each(|(local,parent_world, world)| {
+            .system_named::<(&(Transform,Local), Option<&(Transform,Global)>, &mut (Transform, Global))>("Update System").term_at(1).parent().cascade()
+            .each(|(local,parent_world,world)| {
                 world.0 = local.0;
                 if let Some(parent_world) = parent_world {
 
@@ -66,7 +80,7 @@ impl Ecs {
                     gl::BindVertexArray(0);
                 }
             });
-        (usys,rsys)
+        (usys,rsys, csys)
     }
 
     pub fn create_entity(&mut self, name: &str, pos: Vec3, scale: Vec3, rot_euler_deg: Vec3, parent: Option<Entity>) -> Entity {
@@ -97,8 +111,9 @@ impl Ecs {
     pub fn add_pbr_shader(&mut self, e: Entity, shader: Shader) {
         e.entity_view(&self.world).set(PBRShader(shader));
     }
-    pub fn set_camera(&mut self, camera: ActiveCameraData) {
-        self.world.set(camera);
+
+    pub fn add_camera(&mut self, e: Entity, camera: Camera) {
+       e.entity_view(&self.world).set(camera);
     }
 
 }

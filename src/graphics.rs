@@ -6,6 +6,9 @@ use std::fs;
 use std::ptr;
 use flecs_ecs::macros::Component;
 use gl::types::GLsizei;
+use glam::{vec2, vec3, Vec3};
+use noise::{Fbm, NoiseFn, Perlin};
+
 #[derive(Clone, Copy, Debug)]
 pub struct Shader {
     pub id: u32
@@ -91,8 +94,104 @@ impl Graphics {
     pub fn end_frame(&self) {
         self.window.gl_swap_window();
     }
+    fn perlin_noise(x: f32, y: f32, octaves: i32, lacunarity: f32, persistence: f32) -> f32 {
+        // Create a new Fractal Brownian Motion instance with a Perlin noise source.
+        let mut fbm = Fbm::<Perlin>::new(0); // Using a seed of 0 for reproducibility
+        fbm.octaves = octaves as usize;
+        fbm.lacunarity = lacunarity as f64;
+        fbm.persistence = persistence as f64;
 
-    pub fn create_mesh(&self, vertices: Vec<Vertex>, indices: Vec<u32>) -> Mesh {
+        // The noise function expects a 2D point as an array of f64.
+        let point = [x as f64, y as f64];
+
+        // Get the noise value, which is in the range of roughly [-1.0, 1.0].
+
+        let noise_value = fbm.get(point) as f32;
+
+        // Normalize the value to the [0.0, 1.0] range, which is ideal for heightmaps.
+        (noise_value + 1.0) / 2.0
+    }
+    pub fn create_terrain(terrain_width: u32, terrain_height: u32) -> Mesh {
+        let num_vertices = (terrain_width * terrain_height) as usize;
+        let mut vertices = vec![Vertex::default(); num_vertices];
+
+        // Pre-allocate vector capacity for performance.
+        let num_indices = ((terrain_width - 1) * (terrain_height - 1) * 6) as usize;
+        let mut indices = Vec::with_capacity(num_indices);
+
+        let perlin_scale = 0.02;     // Zoom out to create large features
+        let mountain_height = 10.0; // A multiplier to make mountains taller
+
+        // --- 1. Generate Vertices and Height ---
+        for y in 0..terrain_height {
+            for x in 0..terrain_width {
+                let index = (y * terrain_width + x) as usize;
+
+                // Generate height using the Perlin noise function.
+                let height = Graphics::perlin_noise(
+                    x as f32 * perlin_scale,
+                    y as f32 * perlin_scale,
+                    6,      // octaves
+                    2.0,    // lacunarity
+                    0.5,    // persistence
+                );
+
+                // Set vertex position and UVs
+                vertices[index].position = vec3(x as f32, height * mountain_height, y as f32);
+                vertices[index].uv = vec2(
+                    x as f32 / (terrain_width - 1) as f32,
+                    y as f32 / (terrain_height - 1) as f32,
+                );
+            }
+        }
+
+        // --- 2. Calculate Normals ---
+        for y in 0..terrain_height {
+            for x in 0..terrain_width {
+                let index = (y * terrain_width + x) as usize;
+
+                // Default normal pointing straight up.
+                let mut normal = Vec3::Y;
+
+                // Compute normal using the central difference method, if not on an edge.
+                if x > 0 && x < terrain_width - 1 && y > 0 && y < terrain_height - 1 {
+                    let left = vertices[index - 1].position;
+                    let right = vertices[index + 1].position;
+                    let down = vertices[index - terrain_width as usize].position;
+                    let up = vertices[index + terrain_width as usize].position;
+
+                    let dx = right - left;
+                    let dy = up - down; // In C, you had up - down, which is conventional too.
+
+                    normal = dx.cross(dy).normalize();
+                }
+
+                vertices[index].normal = normal;
+            }
+        }
+
+        // --- 3. Generate Indices ---
+        for y in 0..terrain_height - 1 {
+            for x in 0..terrain_width - 1 {
+                let top_left = y * terrain_width + x;
+                let top_right = top_left + 1;
+                let bottom_left = (y + 1) * terrain_width + x;
+                let bottom_right = bottom_left + 1;
+
+                // First triangle (top-left, bottom-left, top-right)
+                indices.push(top_left);
+                indices.push(bottom_left);
+                indices.push(top_right);
+
+                // Second triangle (top-right, bottom-left, bottom-right)
+                indices.push(top_right);
+                indices.push(bottom_left);
+                indices.push(bottom_right);
+            }
+        }
+      Graphics::create_mesh(vertices, indices)
+    }
+    pub fn create_mesh(vertices: Vec<Vertex>, indices: Vec<u32>) -> Mesh {
         let mut vao = 0;
         let mut vbo = 0;
         let mut ebo = 0;
@@ -139,13 +238,6 @@ impl Graphics {
             vao,
             vbo,
             ebo,
-        }
-    }
-    pub fn draw_mesh(&self, mesh: &Mesh) {
-        unsafe {
-            gl::BindVertexArray(mesh.vao);
-            gl::DrawElements(gl::TRIANGLES, mesh.indices.len() as GLsizei, gl::UNSIGNED_INT, ptr::null());
-            gl::BindVertexArray(0);
         }
     }
 
