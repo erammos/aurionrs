@@ -99,7 +99,7 @@ fn get_height_on_terrain(
 }
 
 pub fn player_move(
-    player: &mut EntityView,
+    player: EntityView,
     mouse_delta: Vec2,
     input_axis: Vec2,
     speed: f32,
@@ -116,7 +116,6 @@ pub fn player_move(
     //let mut pos = *player.get::<&Position>().expect("Player entity must have a Position component");
     player.get::<(&mut (Transform,Local), &mut Position, &mut Rotation)>(|(transform, pos, rot)| {
 
-        println!("{}", mouse_delta);
         rot.0.y += mouse_delta.x * sensitivity;
         rot.0.x -= mouse_delta.y * sensitivity;
         rot.0.x = rot.0.x.clamp(-89.0, 89.0);
@@ -214,11 +213,6 @@ fn main() -> Result<(), String> {
                 } => {
                     break 'running;
                 }
-                , Event::KeyDown {
-                 keycode: Some(Keycode::W) ,..
-                }=> {
-                    input_axis.y = 1.0;
-                },
                 // Capture relative mouse movement
                 Event::MouseMotion { xrel, yrel, .. } => {
                     mouse_delta.x = xrel as f32;
@@ -246,13 +240,12 @@ fn main() -> Result<(), String> {
             input_axis.x = 1.0;
         }
 
-        player_move(&mut camera.entity_view(&world.world),mouse_delta,input_axis,25.0,1.0,dt,&terrrain_mesh,100,100);
+        player_move(camera.entity_view(&world.world),mouse_delta,input_axis,25.0,1.0,dt,&terrrain_mesh,100,100);
         // --- Logic Update ---
         update_system.run();
         camera_system.run();
         graphics.begin_frame();
         render_system.run();
-
         graphics.end_frame();
     }
     Ok(())

@@ -80,7 +80,7 @@ impl Ecs {
                     gl::BindVertexArray(0);
                 }
             });
-        (usys.clone(),rsys.clone(), csys.clone())
+        (usys,rsys, csys)
     }
 
     pub fn create_entity(&mut self, name: &str, pos: Vec3, scale: Vec3, rot_euler_deg: Vec3, parent: Option<Entity>) -> Entity {
