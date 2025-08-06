@@ -177,7 +177,7 @@ fn main() -> Result<(), String> {
         z: 0.0,
     },Vec3::ONE,Vec3::ZERO,None);
 
-   let terrrain_mesh =  Graphics::create_terrain(100,100);
+   let terrrain_mesh =  Graphics::create_terrain(200,200);
     world.add_pbr_shader(terrain,shader);
     world.add_mesh(terrain,terrrain_mesh.clone(), Some(texture));
 
@@ -240,7 +240,7 @@ fn main() -> Result<(), String> {
             input_axis.x = 1.0;
         }
 
-        player_move(camera.entity_view(&world.world),mouse_delta,input_axis,25.0,1.0,dt,&terrrain_mesh,100,100);
+        player_move(camera.entity_view(&world.world),mouse_delta,input_axis,25.0,1.0,dt,&terrrain_mesh,200,200);
         // --- Logic Update ---
         update_system.run();
         camera_system.run();
